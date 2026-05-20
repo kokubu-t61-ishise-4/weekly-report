@@ -31,10 +31,24 @@ CATEGORIES = {
 
 # 工程→カテゴリのマッピング
 PROCESS_TO_CATEGORY = {
+    # 開発系
+    "Design": "investigation",
+    "Build": "development",
     "開発": "development",
+    # 保守系
+    "問合せ対応": "support",
+    "その他": "other",
+    "障害対応": "support",
+    # 会議系
+    "社内会議": "meeting",
+    "社外会議・情報交換": "meeting",
     "会議・打合せ": "meeting",
     "会議": "meeting",
     "打合せ": "meeting",
+    # その他
+    "業界活動": "other",
+    "社内研修・リスキリング": "learning",
+    "マネジメント・フォロー": "other",
     "運用・保守": "operation",
     "運用": "operation",
     "保守": "operation",
@@ -48,6 +62,13 @@ PROCESS_TO_CATEGORY = {
     "サポート": "support",
     "問い合わせ": "support",
 }
+
+
+def extract_process_from_code(code: str) -> str:
+    """工程コード（D11101_国分業務_...._工程名）から工程名を抽出"""
+    if "_" in code:
+        return code.split("_")[-1].strip()
+    return code.strip()
 
 
 def init_database():
@@ -333,10 +354,10 @@ if page == "📥 活動を記録":
                 key="bulk_text"
             )
         else:
-            st.info("💡 スプレッドシートから「工程」と「作業内容」の2列を選択してコピペしてください")
+            st.info("💡 スプレッドシートから「工程」と「作業内容」の2列を選択してコピペしてください（工程コードもOK）")
             bulk_text = st.text_area(
                 "工程 [TAB] 作業内容（1行に1件）",
-                placeholder="開発\t【Databricks】Oracle参照マスタ　資料集め\n会議・打合せ\tFPT社定例\n運用・保守\tAIエージェント作成　確認",
+                placeholder="D12102_国分業務_データ活用_開発_Build\t【Databricks】Oracle参照マスタ　資料集め\nD92201_国分業務_その他_社内会議\tFPT社定例",
                 height=200,
                 key="bulk_text_with_process"
             )
@@ -348,8 +369,9 @@ if page == "📥 活動を記録":
                 for line in lines:
                     if paste_format == "process_work" and "\t" in line:
                         parts = line.split("\t", 1)
-                        process = parts[0].strip()
+                        process_raw = parts[0].strip()
                         title = parts[1].strip() if len(parts) > 1 else ""
+                        process = extract_process_from_code(process_raw)
                         category = PROCESS_TO_CATEGORY.get(process, "other")
                     else:
                         title = line
@@ -410,20 +432,55 @@ elif page == "📋 活動一覧":
 
         filtered = [a for a in activities if a["category"] in selected_cats]
 
-        for act in filtered:
-            col1, col2 = st.columns([6, 1])
-            with col1:
-                st.markdown(f"""
-                <div class="activity-card">
-                    <span class="category-badge">{CATEGORIES.get(act['category'], '📌')}</span>
-                    <strong>{act['date']}</strong> - {act['title']}
-                    {"<br><small>" + act['description'] + "</small>" if act['description'] else ""}
-                </div>
-                """, unsafe_allow_html=True)
-            with col2:
-                if st.button("✏️", key=f"edit_{act['id']}", help="編集"):
-                    st.session_state.editing_id = act['id']
-                    st.rerun()
+        # 詳細未入力のものを上部に表示するオプション
+        no_desc = [a for a in filtered if not a["description"]]
+        has_desc = [a for a in filtered if a["description"]]
+
+        if no_desc:
+            st.markdown(f"##### 📝 詳細未入力（{len(no_desc)}件）")
+            st.caption("詳細を入力してEnterまたはフォーカスを外すと保存されます")
+
+            for act in no_desc:
+                col1, col2, col3 = st.columns([2, 4, 1])
+                with col1:
+                    st.markdown(f"**{act['date']}**")
+                    st.caption(CATEGORIES.get(act['category'], '📌'))
+                with col2:
+                    st.markdown(f"**{act['title']}**")
+                    new_desc = st.text_input(
+                        "詳細",
+                        value="",
+                        key=f"quick_desc_{act['id']}",
+                        placeholder="詳細を入力...",
+                        label_visibility="collapsed"
+                    )
+                    if new_desc:
+                        update_activity(act['id'], date.fromisoformat(act['date']), act['category'], act['title'], new_desc)
+                        st.rerun()
+                with col3:
+                    if st.button("✏️", key=f"edit_{act['id']}", help="全項目編集"):
+                        st.session_state.editing_id = act['id']
+                        st.rerun()
+
+            st.markdown("---")
+
+        if has_desc:
+            st.markdown(f"##### ✅ 詳細入力済み（{len(has_desc)}件）")
+
+            for act in has_desc:
+                col1, col2 = st.columns([6, 1])
+                with col1:
+                    st.markdown(f"""
+                    <div class="activity-card">
+                        <span class="category-badge">{CATEGORIES.get(act['category'], '📌')}</span>
+                        <strong>{act['date']}</strong> - {act['title']}
+                        <br><small>{act['description']}</small>
+                    </div>
+                    """, unsafe_allow_html=True)
+                with col2:
+                    if st.button("✏️", key=f"edit_{act['id']}", help="編集"):
+                        st.session_state.editing_id = act['id']
+                        st.rerun()
 
         # 編集モード
         if "editing_id" in st.session_state and st.session_state.editing_id:
