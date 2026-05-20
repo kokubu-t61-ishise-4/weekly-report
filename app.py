@@ -1,6 +1,7 @@
 """週報・月報作成アプリ - Activity Tracker"""
 import streamlit as st
 import sqlite3
+import json
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -137,6 +138,44 @@ def get_activity_by_id(activity_id: int):
     return None
 
 
+def get_all_activities():
+    """全ての活動を取得（エクスポート用）"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT date, category, title, description, source
+        FROM activities
+        ORDER BY date DESC
+    """)
+    rows = cursor.fetchall()
+    conn.close()
+    return [
+        {
+            "date": row[0],
+            "category": row[1],
+            "title": row[2],
+            "description": row[3],
+            "source": row[4],
+        }
+        for row in rows
+    ]
+
+
+def import_activities(activities: list):
+    """活動をインポート（既存データはクリアして上書き）"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM activities")
+    for act in activities:
+        cursor.execute("""
+            INSERT INTO activities (date, category, title, description, source)
+            VALUES (?, ?, ?, ?, ?)
+        """, (act["date"], act["category"], act["title"], act.get("description", ""), act.get("source", "manual")))
+    conn.commit()
+    conn.close()
+    return len(activities)
+
+
 def generate_report(activities: list, report_type: str = "weekly"):
     """レポート用のテキストを生成"""
     if not activities:
@@ -198,7 +237,7 @@ with st.sidebar:
 
     page = st.radio(
         "メニュー",
-        ["📥 活動を記録", "📋 活動一覧", "📊 レポート生成"],
+        ["📥 活動を記録", "📋 活動一覧", "📊 レポート生成", "💾 データ管理"],
         label_visibility="collapsed"
     )
 
@@ -417,3 +456,70 @@ elif page == "📊 レポート生成":
     else:
         st.warning("該当期間の活動がありません。先に活動を記録してください。")
 
+elif page == "💾 データ管理":
+    st.markdown("### データ管理")
+    st.caption("データのエクスポート・インポートでバックアップを管理できます")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("#### 📤 エクスポート")
+        st.markdown("全ての活動データをJSONファイルとしてダウンロードします。")
+
+        all_activities = get_all_activities()
+
+        if all_activities:
+            export_data = {
+                "exported_at": date.today().isoformat(),
+                "count": len(all_activities),
+                "activities": all_activities
+            }
+            json_str = json.dumps(export_data, ensure_ascii=False, indent=2)
+
+            st.download_button(
+                f"📥 ダウンロード（{len(all_activities)}件）",
+                json_str,
+                f"activity_backup_{date.today().isoformat()}.json",
+                "application/json",
+                use_container_width=True,
+                type="primary"
+            )
+            st.success(f"✅ {len(all_activities)}件のデータをエクスポートできます")
+        else:
+            st.info("エクスポートするデータがありません")
+
+    with col2:
+        st.markdown("#### 📥 インポート")
+        st.markdown("JSONファイルからデータを復元します。")
+        st.warning("⚠️ インポートすると現在のデータは上書きされます")
+
+        uploaded_file = st.file_uploader(
+            "JSONファイルを選択",
+            type=["json"],
+            label_visibility="collapsed"
+        )
+
+        if uploaded_file:
+            try:
+                import_data = json.loads(uploaded_file.read().decode("utf-8"))
+                activities_to_import = import_data.get("activities", [])
+
+                st.info(f"📄 {len(activities_to_import)}件のデータが見つかりました")
+
+                if st.button("🔄 インポート実行", type="primary", use_container_width=True):
+                    count = import_activities(activities_to_import)
+                    st.success(f"✅ {count}件のデータをインポートしました！")
+                    st.rerun()
+
+            except json.JSONDecodeError:
+                st.error("❌ JSONファイルの形式が正しくありません")
+            except Exception as e:
+                st.error(f"❌ エラー: {e}")
+
+    st.markdown("---")
+    st.markdown("#### 💡 使い方")
+    st.markdown("""
+    1. **作業終了時**: 「エクスポート」でJSONをダウンロードして保存
+    2. **次回作業開始時**: 保存したJSONを「インポート」でアップロード
+    3. データが復元され、続きから記録できます
+    """)
