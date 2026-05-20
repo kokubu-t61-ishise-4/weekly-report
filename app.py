@@ -103,6 +103,40 @@ def delete_activity(activity_id: int):
     conn.close()
 
 
+def update_activity(activity_id: int, activity_date: date, category: str, title: str, description: str = ""):
+    """活動を更新"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE activities
+        SET date = ?, category = ?, title = ?, description = ?
+        WHERE id = ?
+    """, (activity_date.isoformat(), category, title, description, activity_id))
+    conn.commit()
+    conn.close()
+
+
+def get_activity_by_id(activity_id: int):
+    """IDで活動を取得"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, date, category, title, description
+        FROM activities WHERE id = ?
+    """, (activity_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return {
+            "id": row[0],
+            "date": row[1],
+            "category": row[2],
+            "title": row[3],
+            "description": row[4],
+        }
+    return None
+
+
 def generate_report(activities: list, report_type: str = "weekly"):
     """レポート用のテキストを生成"""
     if not activities:
@@ -255,13 +289,76 @@ elif page == "📋 活動一覧":
         filtered = [a for a in activities if a["category"] in selected_cats]
 
         for act in filtered:
-            st.markdown(f"""
-            <div class="activity-card">
-                <span class="category-badge">{CATEGORIES.get(act['category'], '📌')}</span>
-                <strong>{act['date']}</strong> - {act['title']}
-                {"<br><small>" + act['description'] + "</small>" if act['description'] else ""}
-            </div>
-            """, unsafe_allow_html=True)
+            col1, col2 = st.columns([6, 1])
+            with col1:
+                st.markdown(f"""
+                <div class="activity-card">
+                    <span class="category-badge">{CATEGORIES.get(act['category'], '📌')}</span>
+                    <strong>{act['date']}</strong> - {act['title']}
+                    {"<br><small>" + act['description'] + "</small>" if act['description'] else ""}
+                </div>
+                """, unsafe_allow_html=True)
+            with col2:
+                if st.button("✏️", key=f"edit_{act['id']}", help="編集"):
+                    st.session_state.editing_id = act['id']
+                    st.rerun()
+
+        # 編集モード
+        if "editing_id" in st.session_state and st.session_state.editing_id:
+            edit_act = get_activity_by_id(st.session_state.editing_id)
+            if edit_act:
+                st.markdown("---")
+                st.markdown("### ✏️ 活動を編集")
+
+                with st.form("edit_activity_form"):
+                    col1, col2 = st.columns([1, 2])
+
+                    with col1:
+                        edit_date = st.date_input(
+                            "日付",
+                            value=date.fromisoformat(edit_act["date"])
+                        )
+                        cat_keys = list(CATEGORIES.keys())
+                        edit_category = st.selectbox(
+                            "カテゴリ",
+                            options=cat_keys,
+                            index=cat_keys.index(edit_act["category"]) if edit_act["category"] in cat_keys else 0,
+                            format_func=lambda x: CATEGORIES[x]
+                        )
+
+                    with col2:
+                        edit_title = st.text_input("タイトル", value=edit_act["title"])
+                        edit_description = st.text_area(
+                            "詳細（任意）",
+                            value=edit_act["description"] or "",
+                            height=100
+                        )
+
+                    col1, col2, col3 = st.columns([2, 2, 1])
+                    with col1:
+                        save_btn = st.form_submit_button("💾 保存", type="primary", use_container_width=True)
+                    with col2:
+                        cancel_btn = st.form_submit_button("キャンセル", use_container_width=True)
+                    with col3:
+                        delete_btn = st.form_submit_button("🗑️ 削除", use_container_width=True)
+
+                    if save_btn:
+                        if edit_title:
+                            update_activity(st.session_state.editing_id, edit_date, edit_category, edit_title, edit_description)
+                            st.success("✅ 更新しました！")
+                            st.session_state.editing_id = None
+                            st.rerun()
+                        else:
+                            st.warning("タイトルを入力してください")
+
+                    if cancel_btn:
+                        st.session_state.editing_id = None
+                        st.rerun()
+
+                    if delete_btn:
+                        delete_activity(st.session_state.editing_id)
+                        st.session_state.editing_id = None
+                        st.rerun()
     else:
         st.info("該当期間の活動はありません")
 
