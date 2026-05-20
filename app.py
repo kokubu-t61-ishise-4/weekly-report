@@ -29,6 +29,19 @@ CATEGORIES = {
     "other": "📌 その他",
 }
 
+# カテゴリ別の詳細入力ヒント（思い出す質問）
+CATEGORY_HINTS = {
+    "meeting": "💡 誰と？何について話した？決まったこと・次のアクションは？",
+    "development": "💡 何を実装した？どこまで進んだ？残タスク・課題は？",
+    "investigation": "💡 何を調べた？結果・わかったことは？次どうする？",
+    "document": "💡 何のドキュメント？完成度は？誰に共有した？",
+    "review": "💡 何をレビューした？指摘・フィードバックは？",
+    "learning": "💡 何を学んだ？どう活かせそう？",
+    "support": "💡 誰から何の問い合わせ？どう対応した？解決した？",
+    "operation": "💡 何の作業？完了した？気づいたことは？",
+    "other": "💡 何をした？誰と？結果は？",
+}
+
 # 工程→カテゴリのマッピング（1列目のアンダースコア右の値で判定）
 PROCESS_TO_CATEGORY = {
     # 開発系
@@ -437,31 +450,34 @@ elif page == "📋 活動一覧":
 
         if no_desc:
             st.markdown(f"##### 📝 詳細未入力（{len(no_desc)}件）")
-            st.caption("詳細を入力してEnterまたはフォーカスを外すと保存されます")
+            st.caption("Enterで保存。思い出しながら書いてみてください。")
 
             for act in no_desc:
-                col1, col2, col3 = st.columns([2, 4, 1])
-                with col1:
-                    st.markdown(f"**{act['date']}**")
-                    st.caption(CATEGORIES.get(act['category'], '📌'))
-                with col2:
-                    st.markdown(f"**{act['title']}**")
-                    new_desc = st.text_input(
-                        "詳細",
-                        value="",
-                        key=f"quick_desc_{act['id']}",
-                        placeholder="詳細を入力...",
-                        label_visibility="collapsed"
-                    )
-                    if new_desc:
-                        update_activity(act['id'], date.fromisoformat(act['date']), act['category'], act['title'], new_desc)
-                        st.rerun()
-                with col3:
-                    if st.button("✏️", key=f"edit_{act['id']}", help="全項目編集"):
-                        st.session_state.editing_id = act['id']
-                        st.rerun()
-
-            st.markdown("---")
+                with st.container():
+                    col1, col2, col3 = st.columns([2, 5, 1])
+                    with col1:
+                        st.markdown(f"**{act['date']}**")
+                        st.caption(CATEGORIES.get(act['category'], '📌'))
+                    with col2:
+                        st.markdown(f"**{act['title']}**")
+                        hint = CATEGORY_HINTS.get(act['category'], "💡 何をした？")
+                        st.caption(hint)
+                        new_desc = st.text_area(
+                            "詳細",
+                            value="",
+                            key=f"quick_desc_{act['id']}",
+                            placeholder="思い出して書く...",
+                            height=80,
+                            label_visibility="collapsed"
+                        )
+                        if new_desc:
+                            update_activity(act['id'], date.fromisoformat(act['date']), act['category'], act['title'], new_desc)
+                            st.rerun()
+                    with col3:
+                        if st.button("✏️", key=f"edit_{act['id']}", help="全項目編集"):
+                            st.session_state.editing_id = act['id']
+                            st.rerun()
+                    st.markdown("---")
 
         if has_desc:
             st.markdown(f"##### ✅ 詳細入力済み（{len(has_desc)}件）")
