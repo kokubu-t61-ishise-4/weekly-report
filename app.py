@@ -29,38 +29,31 @@ CATEGORIES = {
     "other": "📌 その他",
 }
 
-# 工程→カテゴリのマッピング
+# 工程→カテゴリのマッピング（1列目のアンダースコア右の値で判定）
 PROCESS_TO_CATEGORY = {
     # 開発系
-    "Design": "investigation",
-    "Build": "development",
-    "開発": "development",
+    "開発Design": "investigation",
+    "開発Build": "development",
     # 保守系
-    "問合せ対応": "support",
-    "その他": "other",
-    "障害対応": "support",
+    "保守問合せ対応": "support",
+    "保守その他": "operation",
+    "国分業務障害対応": "support",
     # 会議系
-    "社内会議": "meeting",
-    "社外会議・情報交換": "meeting",
-    "会議・打合せ": "meeting",
-    "会議": "meeting",
-    "打合せ": "meeting",
+    "グループ定例社内打合せ": "meeting",
+    "情報交換外出": "meeting",
     # その他
-    "業界活動": "other",
-    "社内研修・リスキリング": "learning",
-    "マネジメント・フォロー": "other",
+    "卸研ＳＭＴＳ等": "other",
+    "ウェビナー社外勉強会部内勉強会": "learning",
+    "教育サポート": "other",
+    "それ以外すべて": "other",
+    # 汎用（旧形式・手入力対応）
+    "開発": "development",
+    "会議・打合せ": "meeting",
     "運用・保守": "operation",
-    "運用": "operation",
-    "保守": "operation",
     "調査": "investigation",
-    "分析": "investigation",
-    "ドキュメント": "document",
-    "資料作成": "document",
     "レビュー": "review",
     "学習": "learning",
-    "研修": "learning",
     "サポート": "support",
-    "問い合わせ": "support",
 }
 
 
@@ -354,10 +347,10 @@ if page == "📥 活動を記録":
                 key="bulk_text"
             )
         else:
-            st.info("💡 スプレッドシートから「工程」と「作業内容」の2列を選択してコピペしてください（工程コードもOK）")
+            st.info("💡 スプレッドシートから「項目コード」「工程」「作業内容」の3列を選択してコピペ")
             bulk_text = st.text_area(
-                "工程 [TAB] 作業内容（1行に1件）",
-                placeholder="D12102_国分業務_データ活用_開発_Build\t【Databricks】Oracle参照マスタ　資料集め\nD92201_国分業務_その他_社内会議\tFPT社定例",
+                "項目コード [TAB] 工程 [TAB] 作業内容",
+                placeholder="D12102国分業務データ活用_開発Build\t開発\t【Databricks】Oracle参照マスタ　資料集め\nD92201国分業務その他社内会議_グループ定例社内打合せ\t会議・打合せ\tFPT社定例",
                 height=200,
                 key="bulk_text_with_process"
             )
@@ -368,10 +361,16 @@ if page == "📥 活動を記録":
                 count = 0
                 for line in lines:
                     if paste_format == "process_work" and "\t" in line:
-                        parts = line.split("\t", 1)
-                        process_raw = parts[0].strip()
-                        title = parts[1].strip() if len(parts) > 1 else ""
-                        process = extract_process_from_code(process_raw)
+                        parts = line.split("\t")
+                        if len(parts) >= 3:
+                            process = extract_process_from_code(parts[0].strip())
+                            title = parts[2].strip()
+                        elif len(parts) == 2:
+                            process = extract_process_from_code(parts[0].strip())
+                            title = parts[1].strip()
+                        else:
+                            process = ""
+                            title = line
                         category = PROCESS_TO_CATEGORY.get(process, "other")
                     else:
                         title = line
