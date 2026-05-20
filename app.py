@@ -25,7 +25,28 @@ CATEGORIES = {
     "review": "👀 レビュー",
     "learning": "📚 学習・研修",
     "support": "🙋 サポート・問い合わせ対応",
+    "operation": "🔧 運用・保守",
     "other": "📌 その他",
+}
+
+# 工程→カテゴリのマッピング
+PROCESS_TO_CATEGORY = {
+    "開発": "development",
+    "会議・打合せ": "meeting",
+    "会議": "meeting",
+    "打合せ": "meeting",
+    "運用・保守": "operation",
+    "運用": "operation",
+    "保守": "operation",
+    "調査": "investigation",
+    "分析": "investigation",
+    "ドキュメント": "document",
+    "資料作成": "document",
+    "レビュー": "review",
+    "学習": "learning",
+    "研修": "learning",
+    "サポート": "support",
+    "問い合わせ": "support",
 }
 
 
@@ -285,30 +306,58 @@ if page == "📥 活動を記録":
 
     with tab2:
         st.markdown("### 一括登録")
-        st.caption("工数管理表などからコピペして、複数の活動を一度に登録できます")
+        st.caption("工数管理表から「工程」と「作業内容」をまとめてコピペできます")
 
         bulk_date = st.date_input("日付", value=date.today(), key="bulk_date")
-        bulk_category = st.selectbox(
-            "カテゴリ（全件共通）",
-            options=list(CATEGORIES.keys()),
-            format_func=lambda x: CATEGORIES[x],
-            key="bulk_category"
+
+        st.markdown("##### 貼り付け形式")
+        paste_format = st.radio(
+            "形式を選択",
+            ["work_only", "process_work"],
+            format_func=lambda x: "作業内容のみ" if x == "work_only" else "工程 + 作業内容（タブ区切り）",
+            horizontal=True,
+            label_visibility="collapsed"
         )
 
-        bulk_text = st.text_area(
-            "作業内容（1行に1件）",
-            placeholder="【Databricks】Oracle参照マスタ　資料集め\nFPT社定例\nAIエージェント作成　確認",
-            height=200,
-            key="bulk_text"
-        )
+        if paste_format == "work_only":
+            bulk_category = st.selectbox(
+                "カテゴリ（全件共通）",
+                options=list(CATEGORIES.keys()),
+                format_func=lambda x: CATEGORIES[x],
+                key="bulk_category"
+            )
+            bulk_text = st.text_area(
+                "作業内容（1行に1件）",
+                placeholder="【Databricks】Oracle参照マスタ　資料集め\nFPT社定例\nAIエージェント作成　確認",
+                height=200,
+                key="bulk_text"
+            )
+        else:
+            st.info("💡 スプレッドシートから「工程」と「作業内容」の2列を選択してコピペしてください")
+            bulk_text = st.text_area(
+                "工程 [TAB] 作業内容（1行に1件）",
+                placeholder="開発\t【Databricks】Oracle参照マスタ　資料集め\n会議・打合せ\tFPT社定例\n運用・保守\tAIエージェント作成　確認",
+                height=200,
+                key="bulk_text_with_process"
+            )
 
         if st.button("📥 一括登録", type="primary", use_container_width=True):
             if bulk_text.strip():
                 lines = [line.strip() for line in bulk_text.strip().split("\n") if line.strip()]
                 count = 0
                 for line in lines:
-                    add_activity(bulk_date, bulk_category, line, "", "bulk")
-                    count += 1
+                    if paste_format == "process_work" and "\t" in line:
+                        parts = line.split("\t", 1)
+                        process = parts[0].strip()
+                        title = parts[1].strip() if len(parts) > 1 else ""
+                        category = PROCESS_TO_CATEGORY.get(process, "other")
+                    else:
+                        title = line
+                        category = bulk_category if paste_format == "work_only" else "other"
+
+                    if title:
+                        add_activity(bulk_date, category, title, "", "bulk")
+                        count += 1
                 st.success(f"✅ {count}件の活動を登録しました！")
                 st.rerun()
             else:
