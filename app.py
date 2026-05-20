@@ -296,9 +296,9 @@ with st.sidebar:
 st.markdown('<p class="main-header">📝 Activity Tracker</p>', unsafe_allow_html=True)
 st.markdown('<p class="sub-header">週報・月報作成のための活動記録ツール</p>', unsafe_allow_html=True)
 
-# 完了メッセージ表示
+# 完了メッセージ表示（画面上部に大きく）
 if "toast_message" in st.session_state:
-    st.toast(st.session_state.toast_message)
+    st.success(st.session_state.toast_message)
     del st.session_state.toast_message
 
 if page == "📥 活動を記録":
