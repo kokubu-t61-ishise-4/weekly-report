@@ -249,36 +249,70 @@ st.markdown('<p class="main-header">📝 Activity Tracker</p>', unsafe_allow_htm
 st.markdown('<p class="sub-header">週報・月報作成のための活動記録ツール</p>', unsafe_allow_html=True)
 
 if page == "📥 活動を記録":
-    st.markdown("### 新しい活動を記録")
+    tab1, tab2 = st.tabs(["📝 1件ずつ登録", "📋 一括登録"])
 
-    with st.form("add_activity_form", clear_on_submit=True):
-        col1, col2 = st.columns([1, 2])
+    with tab1:
+        st.markdown("### 新しい活動を記録")
 
-        with col1:
-            activity_date = st.date_input("日付", value=date.today())
-            category = st.selectbox(
-                "カテゴリ",
-                options=list(CATEGORIES.keys()),
-                format_func=lambda x: CATEGORIES[x]
-            )
+        with st.form("add_activity_form", clear_on_submit=True):
+            col1, col2 = st.columns([1, 2])
 
-        with col2:
-            title = st.text_input("タイトル", placeholder="例: 週次定例ミーティング")
-            description = st.text_area(
-                "詳細（任意）",
-                placeholder="例: プロジェクトの進捗確認、来週のタスク割り振り",
-                height=100
-            )
+            with col1:
+                activity_date = st.date_input("日付", value=date.today())
+                category = st.selectbox(
+                    "カテゴリ",
+                    options=list(CATEGORIES.keys()),
+                    format_func=lambda x: CATEGORIES[x]
+                )
 
-        submitted = st.form_submit_button("📥 記録する", type="primary", use_container_width=True)
+            with col2:
+                title = st.text_input("タイトル", placeholder="例: 週次定例ミーティング")
+                description = st.text_area(
+                    "詳細（任意）",
+                    placeholder="例: プロジェクトの進捗確認、来週のタスク割り振り",
+                    height=100
+                )
 
-        if submitted:
-            if title:
-                add_activity(activity_date, category, title, description)
-                st.success(f"✅ 「{title}」を記録しました！")
+            submitted = st.form_submit_button("📥 記録する", type="primary", use_container_width=True)
+
+            if submitted:
+                if title:
+                    add_activity(activity_date, category, title, description)
+                    st.success(f"✅ 「{title}」を記録しました！")
+                    st.rerun()
+                else:
+                    st.warning("タイトルを入力してください")
+
+    with tab2:
+        st.markdown("### 一括登録")
+        st.caption("工数管理表などからコピペして、複数の活動を一度に登録できます")
+
+        bulk_date = st.date_input("日付", value=date.today(), key="bulk_date")
+        bulk_category = st.selectbox(
+            "カテゴリ（全件共通）",
+            options=list(CATEGORIES.keys()),
+            format_func=lambda x: CATEGORIES[x],
+            key="bulk_category"
+        )
+
+        bulk_text = st.text_area(
+            "作業内容（1行に1件）",
+            placeholder="【Databricks】Oracle参照マスタ　資料集め\nFPT社定例\nAIエージェント作成　確認",
+            height=200,
+            key="bulk_text"
+        )
+
+        if st.button("📥 一括登録", type="primary", use_container_width=True):
+            if bulk_text.strip():
+                lines = [line.strip() for line in bulk_text.strip().split("\n") if line.strip()]
+                count = 0
+                for line in lines:
+                    add_activity(bulk_date, bulk_category, line, "", "bulk")
+                    count += 1
+                st.success(f"✅ {count}件の活動を登録しました！")
                 st.rerun()
             else:
-                st.warning("タイトルを入力してください")
+                st.warning("作業内容を入力してください")
 
     # 最近の活動を表示
     st.markdown("---")
