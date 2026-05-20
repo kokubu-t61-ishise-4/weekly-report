@@ -1,9 +1,8 @@
 """週報・月報作成アプリ - Activity Tracker"""
 import streamlit as st
 import sqlite3
-from datetime import datetime, date, timedelta
+from datetime import date, timedelta
 from pathlib import Path
-import os
 
 # ページ設定
 st.set_page_config(
@@ -104,38 +103,6 @@ def delete_activity(activity_id: int):
     conn.close()
 
 
-def get_recent_files(directory: str, days: int = 7, extensions: list = None):
-    """最近更新されたファイルを取得"""
-    if extensions is None:
-        extensions = [".py", ".sql", ".md", ".txt", ".xlsx", ".csv", ".json", ".ipynb"]
-
-    recent_files = []
-    cutoff = datetime.now() - timedelta(days=days)
-
-    try:
-        for root, dirs, files in os.walk(directory):
-            # 隠しフォルダとvenvをスキップ
-            dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ['venv', 'node_modules', '__pycache__', '.git']]
-
-            for file in files:
-                if any(file.endswith(ext) for ext in extensions):
-                    filepath = Path(root) / file
-                    try:
-                        mtime = datetime.fromtimestamp(filepath.stat().st_mtime)
-                        if mtime > cutoff:
-                            recent_files.append({
-                                "path": str(filepath),
-                                "name": file,
-                                "modified": mtime,
-                            })
-                    except (OSError, PermissionError):
-                        continue
-    except Exception:
-        pass
-
-    return sorted(recent_files, key=lambda x: x["modified"], reverse=True)
-
-
 def generate_report(activities: list, report_type: str = "weekly"):
     """レポート用のテキストを生成"""
     if not activities:
@@ -197,7 +164,7 @@ with st.sidebar:
 
     page = st.radio(
         "メニュー",
-        ["📥 活動を記録", "📋 活動一覧", "📊 レポート生成", "📁 ファイル検出"],
+        ["📥 活動を記録", "📋 活動一覧", "📊 レポート生成"],
         label_visibility="collapsed"
     )
 
@@ -353,50 +320,3 @@ elif page == "📊 レポート生成":
     else:
         st.warning("該当期間の活動がありません。先に活動を記録してください。")
 
-elif page == "📁 ファイル検出":
-    st.markdown("### ローカルファイルの更新検出")
-    st.caption("指定したフォルダ内で最近更新されたファイルを検出し、活動として取り込めます")
-
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        scan_dir = st.text_input(
-            "スキャン対象フォルダ",
-            value=str(Path.home() / "Desktop"),
-            placeholder="例: C:\\Users\\username\\projects"
-        )
-    with col2:
-        scan_days = st.number_input("日数", min_value=1, max_value=30, value=7)
-
-    if st.button("🔍 スキャン実行", type="primary"):
-        if Path(scan_dir).exists():
-            with st.spinner("ファイルをスキャン中..."):
-                files = get_recent_files(scan_dir, days=scan_days)
-
-            if files:
-                st.success(f"**{len(files)}件** のファイルが見つかりました")
-
-                for f in files[:20]:
-                    col1, col2, col3 = st.columns([3, 1, 1])
-                    with col1:
-                        st.markdown(f"**{f['name']}**")
-                        st.caption(f['path'])
-                    with col2:
-                        st.caption(f['modified'].strftime('%m/%d %H:%M'))
-                    with col3:
-                        if st.button("➕ 取込", key=f"import_{hash(f['path'])}"):
-                            add_activity(
-                                f['modified'].date(),
-                                "development",
-                                f"ファイル更新: {f['name']}",
-                                f"パス: {f['path']}",
-                                source="file_scan"
-                            )
-                            st.success(f"✅ {f['name']} を取り込みました")
-                            st.rerun()
-
-                if len(files) > 20:
-                    st.info(f"他に {len(files) - 20} 件のファイルがあります")
-            else:
-                st.info("該当期間に更新されたファイルはありません")
-        else:
-            st.error("指定されたフォルダが存在しません")
