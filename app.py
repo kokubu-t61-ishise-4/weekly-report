@@ -296,6 +296,11 @@ with st.sidebar:
 st.markdown('<p class="main-header">📝 Activity Tracker</p>', unsafe_allow_html=True)
 st.markdown('<p class="sub-header">週報・月報作成のための活動記録ツール</p>', unsafe_allow_html=True)
 
+# 完了メッセージ表示
+if "toast_message" in st.session_state:
+    st.toast(st.session_state.toast_message)
+    del st.session_state.toast_message
+
 if page == "📥 活動を記録":
     tab1, tab2 = st.tabs(["📝 1件ずつ登録", "📋 一括登録"])
 
@@ -326,7 +331,7 @@ if page == "📥 活動を記録":
             if submitted:
                 if title:
                     add_activity(activity_date, category, title, description)
-                    st.success(f"✅ 「{title}」を記録しました！")
+                    st.session_state.toast_message = f"🎉 「{title}」を記録しました！"
                     st.rerun()
                 else:
                     st.warning("タイトルを入力してください")
@@ -392,7 +397,7 @@ if page == "📥 活動を記録":
                     if title:
                         add_activity(bulk_date, category, title, "", "bulk")
                         count += 1
-                st.success(f"✅ {count}件の活動を登録しました！")
+                st.session_state.toast_message = f"🎉 {count}件の活動を一括登録しました！"
                 st.rerun()
             else:
                 st.warning("作業内容を入力してください")
@@ -416,6 +421,7 @@ if page == "📥 活動を記録":
                 with col3:
                     if st.button("🗑️", key=f"del_{act['id']}", help="削除"):
                         delete_activity(act["id"])
+                        st.session_state.toast_message = "🗑️ 削除しました"
                         st.rerun()
     else:
         st.info("まだ記録がありません。上のフォームから活動を記録しましょう！")
@@ -472,6 +478,7 @@ elif page == "📋 活動一覧":
                         )
                         if new_desc:
                             update_activity(act['id'], date.fromisoformat(act['date']), act['category'], act['title'], new_desc)
+                            st.session_state.toast_message = "🎉 詳細を保存しました！"
                             st.rerun()
                     with col3:
                         if st.button("✏️", key=f"edit_{act['id']}", help="全項目編集"):
@@ -539,8 +546,8 @@ elif page == "📋 活動一覧":
                     if save_btn:
                         if edit_title:
                             update_activity(st.session_state.editing_id, edit_date, edit_category, edit_title, edit_description)
-                            st.success("✅ 更新しました！")
                             st.session_state.editing_id = None
+                            st.session_state.toast_message = "🎉 更新しました！"
                             st.rerun()
                         else:
                             st.warning("タイトルを入力してください")
@@ -552,6 +559,7 @@ elif page == "📋 活動一覧":
                     if delete_btn:
                         delete_activity(st.session_state.editing_id)
                         st.session_state.editing_id = None
+                        st.session_state.toast_message = "🗑️ 削除しました"
                         st.rerun()
     else:
         st.info("該当期間の活動はありません")
@@ -631,7 +639,7 @@ elif page == "💾 データ管理":
             }
             json_str = json.dumps(export_data, ensure_ascii=False, indent=2)
 
-            st.download_button(
+            downloaded = st.download_button(
                 f"📥 ダウンロード（{len(all_activities)}件）",
                 json_str,
                 f"activity_backup_{date.today().isoformat()}.json",
@@ -639,7 +647,10 @@ elif page == "💾 データ管理":
                 use_container_width=True,
                 type="primary"
             )
-            st.success(f"✅ {len(all_activities)}件のデータをエクスポートできます")
+            if downloaded:
+                st.success(f"🎉 エクスポート完了！（{len(all_activities)}件）")
+            else:
+                st.caption(f"{len(all_activities)}件のデータがあります")
         else:
             st.info("エクスポートするデータがありません")
 
@@ -663,7 +674,7 @@ elif page == "💾 データ管理":
 
                 if st.button("🔄 インポート実行", type="primary", use_container_width=True):
                     count = import_activities(activities_to_import)
-                    st.success(f"✅ {count}件のデータをインポートしました！")
+                    st.session_state.toast_message = f"🎉 インポート完了！（{count}件）"
                     st.rerun()
 
             except json.JSONDecodeError:
